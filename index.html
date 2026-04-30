@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Digual Games - Quiplash!</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="/games/socket.io/socket.io.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Outfit',sans-serif;background:linear-gradient(135deg,#0f0c29 0%,#1a1a3e 50%,#24243e 100%);color:#e0e0e0;min-height:100vh;min-height:100dvh;overflow-x:hidden}
+.container{width:100%;max-width:900px;margin:0 auto;padding:20px;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
+.screen{display:none;flex-direction:column;gap:16px;flex:1}.screen.active{display:flex}
+h1{font-size:2rem;font-weight:800;background:linear-gradient(90deg,#00f2ea 0%,#00c6fb 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center}
+h2{font-size:1.5rem;font-weight:700;color:#00f2ea;text-align:center}
+.card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:20px;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 28px;border-radius:50px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.08);color:#e0e0e0;font-size:1rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s;text-decoration:none;width:100%}
+.btn:hover{background:rgba(255,255,255,0.15);transform:translateY(-1px)}
+.btn-primary{background:linear-gradient(90deg,#00f2ea 0%,#00c6fb 100%);color:#000;border:none}
+.btn-primary:hover{box-shadow:0 0 20px rgba(0,242,234,0.4)}
+.btn-success{background:rgba(0,200,83,0.2);border-color:rgba(0,200,83,0.3);color:#66ff99}
+.btn-small{padding:10px 18px;font-size:.85rem;width:auto}
+
+input,select{padding:12px 16px;border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.06);color:#e0e0e0;font-family:inherit;font-size:1rem;outline:none;width:100%}
+input:focus,select:focus{border-color:#00f2ea}
+label{font-size:.85rem;color:rgba(255,255,255,0.5);display:block;margin-bottom:4px}
+.form-group{margin-bottom:12px}
+
+.toggle-group{display:flex;gap:8px;flex-wrap:wrap}
+.toggle-btn{padding:10px 20px;border-radius:50px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.5);cursor:pointer;font-family:inherit;font-size:.9rem;transition:all .2s}
+.toggle-btn.active{background:rgba(0,242,234,0.15);border-color:#00f2ea;color:#00f2ea}
+
+.waiting-dots::after{content:'';animation:dots 1.5s infinite}
+@keyframes dots{0%,20%{content:'.'}40%{content:'..'}60%,100%{content:'...'}}
+
+/* TV - Lobby */
+.qr-area{display:flex;flex-direction:column;align-items:center;gap:12px;padding:20px}
+.qr-area svg{width:220px;height:220px}.qr-area img{width:220px;height:220px}
+.emoji-code{font-size:3.5rem;letter-spacing:12px;text-align:center}
+.room-code{font-size:2.5rem;font-weight:800;color:#00f2ea;text-align:center;letter-spacing:6px}
+.player-list{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:10px 0}
+.player-badge{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;background:rgba(255,255,255,0.06);font-size:.9rem}
+.player-badge.audience{opacity:.5}
+.player-badge .host-star{color:#ffd700}
+
+/* TV - Answering */
+.progress-bar{height:8px;border-radius:4px;background:rgba(255,255,255,0.1);overflow:hidden;margin:10px 0}
+.progress-fill{height:100%;background:linear-gradient(90deg,#00f2ea,#00c6fb);border-radius:4px;transition:width .5s}
+.answered-count{text-align:center;color:rgba(255,255,255,0.5);font-size:.9rem}
+
+/* TV - Voting Display */
+.prompt-card{padding:24px;text-align:center;border-radius:16px;background:rgba(0,242,234,0.05);border:1px solid rgba(0,242,234,0.15);margin-bottom:12px}
+.prompt-text{font-size:1.3rem;font-weight:600;margin-bottom:8px;color:#fff}
+.answer-text{font-size:1.6rem;font-weight:700;color:#00f2ea}
+.vote-count{font-size:1.1rem;color:rgba(255,255,255,0.5);margin-top:8px}
+
+/* Results */
+.leaderboard{display:flex;flex-direction:column;gap:8px}
+.leaderboard-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)}.leaderboard-item:first-child{background:rgba(255,215,0,0.08);border-color:rgba(255,215,0,0.2)}.leaderboard-item .rank{font-size:1.2rem;font-weight:800;width:30px}.leaderboard-item .name{flex:1;font-weight:600}.leaderboard-item .score{font-size:1.1rem;font-weight:700;color:#00f2ea}.round-result-card{padding:16px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);margin-bottom:10px}.round-result-card .q{font-size:.9rem;color:rgba(255,255,255,0.5)}.round-result-card .a{font-size:1.1rem;font-weight:600;color:#00f2ea;margin:4px 0}.round-result-card .author{font-size:.8rem;color:rgba(255,255,255,0.3)}.round-result-card .votes{font-size:.9rem;color:#ffd700}
+
+/* Mobile specific */
+.mobile-view .btn{font-size:1.1rem;padding:16px 28px}
+.mobile-view .prompt-text{font-size:1.1rem}
+.mobile-view .answer-text{font-size:1.3rem}
+.mobile-view textarea{padding:12px 16px;border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.06);color:#e0e0e0;font-family:inherit;font-size:1rem;outline:none;width:100%;resize:none;min-height:80px}
+.mobile-view textarea:focus{border-color:#00f2ea}
+.mobile-view .emoji-input{font-size:2rem;text-align:center;letter-spacing:8px;padding:16px}
+
+/* Mobile vote */
+.vote-option{padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);margin-bottom:8px;cursor:pointer;transition:all .2s}
+.vote-option:hover,.vote-option.selected{background:rgba(0,242,234,0.1);border-color:#00f2ea}
+.vote-option .vo-prompt{font-size:.85rem;color:rgba(255,255,255,0.4);margin-bottom:4px}
+.vote-option .vo-answer{font-size:1.1rem;font-weight:600;color:#fff}
+
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(100px);background:rgba(0,0,0,.85);color:#fff;padding:12px 24px;border-radius:12px;font-size:.9rem;z-index:100;transition:transform .3s;pointer-events:none}.toast.show{transform:translateX(-50%) translateY(0)}
+
+/* TV optimized */
+.tv-view .prompt-text{font-size:1.5rem}
+.tv-view .answer-text{font-size:2rem}
+.tv-view .emoji-code{font-size:5rem}
+.tv-view .room-code{font-size:3rem}
+.tv-view .qr-area svg{width:280px;height:280px}
+
+/* Finished screen */
+.final-winner{text-align:center;padding:30px}
+.final-winner .trophy{font-size:4rem}
+.final-winner .winner-name{font-size:2rem;font-weight:800;color:#ffd700;margin:10px 0}
+.final-winner .winner-score{font-size:1.2rem;color:rgba(255,255,255,0.5)}
+</style>
+</head>
+<body>
+<div class="container" id="app">
+  <h1>🎤 Quiplash!</h1>
+
+  <!-- TV: Create/Home -->
+  <div class="screen active" id="tvHome">
+    <div class="card" style="text-align:center;padding:30px">
+      <p style="color:rgba(255,255,255,0.5);margin-bottom:20px">The party game where you write funny answers and vote for the best!</p>
+      <div class="form-group"><label>Your Name</label><input type="text" id="hostName" placeholder="Host" value="Host"></div>
+      <div class="form-group"><label>Age Group</label>
+        <div class="toggle-group">
+          <button class="toggle-btn active" data-age="kids" onclick="selectAge(this)">👶 Kids</button>
+          <button class="toggle-btn" data-age="teens" onclick="selectAge(this)">🧑 Teens</button>
+          <button class="toggle-btn" data-age="adults" onclick="selectAge(this)">🎯 Adults</button>
+        </div>
+      </div>
+      <div class="form-group"><label>Theme</label>
+        <div class="toggle-group">
+          <button class="toggle-btn active" data-theme="mixed" onclick="selectTheme(this)">🎲 Mixed</button>
+          <button class="toggle-btn" data-theme="sports" onclick="selectTheme(this)">🏀 Sports</button>
+          <button class="toggle-btn" data-theme="entertainment" onclick="selectTheme(this)">🎬 Entertainment</button>
+          <button class="toggle-btn" data-theme="pirates" onclick="selectTheme(this)">🏴‍☠️ Pirates</button>
+          <button class="toggle-btn" data-theme="food" onclick="selectTheme(this)">🍔 Food</button>
+        </div>
+      </div>
+      <br>
+      <button class="btn btn-primary" onclick="createRoom()">🚀 Create Game</button>
+    </div>
+  </div>
+
+  <!-- TV: Lobby -->
+  <div class="screen" id="tvLobby">
+    <div class="card qr-area">
+      <div class="room-code" id="roomCodeDisplay">PLAY</div>
+      <div id="qrContainer"></div>
+      <div class="emoji-code" id="emojiDisplay">🍕🎮🚀🌈</div>
+      <p style="color:rgba(255,255,255,0.4);font-size:.9rem">📱 Scan the QR code with your phone camera to join!</p>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="color:rgba(255,255,255,0.5);font-size:.9rem">Players (<span id="playerCount">0</span>)</span>
+        <button class="btn btn-small btn-success" onclick="startGame()" id="startBtn">▶ Start Game</button>
+      </div>
+      <div class="player-list" id="playerList"></div>
+    </div>
+  </div>
+
+  <!-- TV: Answering -->
+  <div class="screen" id="tvAnswering">
+    <div class="card" style="text-align:center">
+      <h2>📝 Round <span id="roundNum">1</span></h2>
+      <p style="color:rgba(255,255,255,0.5);margin:10px 0">Waiting for players to answer...</p>
+      <div class="progress-bar"><div class="progress-fill" id="answerProgress" style="width:0%"></div></div>
+      <div class="answered-count" id="answerCount">0 / 0 answered</div>
+    </div>
+  </div>
+
+  <!-- TV: Voting -->
+  <div class="screen" id="tvVoting">
+    <div class="card" style="text-align:center">
+      <h2>🗳️ Vote!</h2>
+      <p style="color:rgba(255,255,255,0.5);margin:10px 0" id="votingPromptLabel">Which answer is funniest?</p>
+    </div>
+    <div id="votingDisplay"></div>
+    <button class="btn btn-small" onclick="nextPromptTV()" id="nextPromptBtn" style="width:auto;margin:0 auto">Next →</button>
+  </div>
+
+  <!-- TV: Results -->
+  <div class="screen" id="tvResults">
+    <h2>🏆 Round <span id="resultsRound">1</span> Results</h2>
+    <div id="resultsContent"></div>
+    <div style="display:flex;gap:10px;margin-top:10px">
+      <button class="btn btn-primary" id="nextRoundBtn" onclick="nextRound()">▶ Next Round</button>
+    </div>
+  </div>
+
+  <!-- TV: Finished -->
+  <div class="screen" id="tvFinished">
+    <div class="final-winner" id="finalWinner"></div>
+    <div id="finalResults"></div>
+    <button class="btn btn-primary" onclick="location.reload()">🔄 New Game</button>
+  </div>
+
+  <!-- Mobile: Join -->
+  <div class="screen mobile-view" id="mobileJoin">
+    <div class="card" style="text-align:center;padding:30px">
+      <h2>🎮 Join Game</h2>
+      <p style="color:rgba(255,255,255,0.5);margin:10px 0">Room: <strong id="mobileRoomCode" style="font-size:1.5rem;color:#00f2ea;letter-spacing:4px">PLAY</strong></p>
+      <div class="form-group" style="margin-top:16px"><input type="text" id="playerName" placeholder="Your nickname" autofocus></div>
+      <div class="form-group">
+        <div class="toggle-group" style="justify-content:center">
+          <button class="toggle-btn active" data-role="player" onclick="selectRole(this)">🎯 Player</button>
+          <button class="toggle-btn" data-role="audience" onclick="selectRole(this)">👀 Audience</button>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="joinFromQR()">✅ Join Game</button>
+    </div>
+  </div>
+
+  <!-- Mobile: Waiting -->
+  <div class="screen mobile-view" id="mobileWait">
+    <div class="card" style="text-align:center;padding:40px">
+      <h2>⏳ Waiting...</h2>
+      <p style="color:rgba(255,255,255,0.5);margin:10px 0">Waiting for host to start the game</p>
+      <div style="font-size:3rem;margin:20px 0" id="waitEmoji">🍕</div>
+      <p style="color:rgba(255,255,255,0.3);font-size:.85rem">Room: <span id="waitRoomCode">PLAY</span></p>
+    </div>
+  </div>
+
+  <!-- Mobile: Answer -->
+  <div class="screen mobile-view" id="mobileAnswer">
+    <h2>📝 Your Prompts</h2>
+    <p style="color:rgba(255,255,255,0.5);text-align:center;margin-bottom:10px">Write your funniest answers!</p>
+    <div id="promptInputs"></div>
+    <button class="btn btn-primary" onclick="submitAnswers()">✅ Submit Answers</button>
+  </div>
+
+  <!-- Mobile: Vote -->
+  <div class="screen mobile-view" id="mobileVote">
+    <h2>🗳️ Vote!</h2>
+    <p style="color:rgba(255,255,255,0.5);margin-bottom:10px">Tap the funniest answers</p>
+    <div id="voteOptions"></div>
+    <div style="text-align:center;color:rgba(255,255,255,0.3);font-size:.85rem;margin-top:8px">Votes cast: <span id="myVoteCount">0</span>/2</div>
+  </div>
+
+  <!-- Mobile: Results -->
+  <div class="screen mobile-view" id="mobileResults">
+    <h2 id="mobileResultsTitle">🏆 Results</h2>
+    <div id="mobileResultsContent"></div>
+    <div style="text-align:center;color:rgba(255,255,255,0.3);font-size:.85rem;margin-top:10px" id="mobileScore">Score: 0</div>
+  </div>
+
+  <!-- Mobile: Audience voting -->
+  <div class="screen mobile-view" id="mobileAudienceVote">
+    <h2>🗳️ Audience Vote!</h2>
+    <p style="color:rgba(255,255,255,0.5);margin-bottom:10px">Tap the funniest answers</p>
+    <div id="audienceVoteOptions"></div>
+    <div style="text-align:center;color:rgba(255,255,255,0.3);font-size:.85rem;margin-top:8px">Votes cast: <span id="audienceVoteCount">0</span>/2</div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const socket = io({path: '/games/socket.io'});
+let myId = null;
+let myName = '';
+let isHost = false;
+let isAudience = false;
+let myPrompts = [];
+let myVotes = [];
+let roomState = null;
+let currentVotingIndex = 0;
+let isTV = window.innerWidth > 768;
+let selectedAge = 'kids';
+let selectedTheme = 'mixed';
+let selectedRole = 'player';
+
+// Detect TV vs Mobile
+if (isTV) document.body.classList.add('tv-view');
+else document.body.classList.add('mobile-view');
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+}
+
+function showToast(msg, duration = 3000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), duration);
+}
+
+function selectAge(el) {
+  document.querySelectorAll('[data-age]').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  selectedAge = el.dataset.age;
+}
+
+function selectTheme(el) {
+  document.querySelectorAll('[data-theme]').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  selectedTheme = el.dataset.theme;
+}
+
+function selectRole(el) {
+  document.querySelectorAll('[data-role]').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  selectedRole = el.dataset.role;
+}
+
+// Auto-detect mobile from URL param
+const urlParams = new URLSearchParams(window.location.search);
+const joinCode = urlParams.get('join');
+if (joinCode) {
+  isTV = false;
+  document.body.classList.remove('tv-view');
+  document.body.classList.add('mobile-view');
+  showScreen('mobileJoin');
+  document.getElementById('mobileRoomCode').textContent = joinCode;
+}
+
+// ===== CREATE ROOM =====
+function createRoom() {
+  const name = document.getElementById('hostName').value || 'Host';
+  socket.emit('create_room', { hostName: name, ageRange: selectedAge, theme: selectedTheme }, (res) => {
+    if (res.success) {
+      isHost = true;
+      myId = socket.id;
+      myName = name;
+      showScreen('tvLobby');
+      document.getElementById('roomCodeDisplay').textContent = res.roomCode;
+      document.getElementById('emojiDisplay').textContent = res.emojis.join(' ');
+      document.getElementById('qrContainer').innerHTML = `<img src="/api/qr?room=${res.roomCode}" alt="QR Code">`;
+    } else {
+      showToast('Error: ' + res.error);
+    }
+  });
+}
+
+// ===== JOIN ROOM (from QR link or manual code) =====
+function joinFromQR() {
+  const params = new URLSearchParams(window.location.search);
+  let roomCode = params.get('join');
+  if (!roomCode) roomCode = document.getElementById('mobileRoomCode').textContent;
+  const name = document.getElementById('playerName').value.trim() || 'Player';
+  if (!roomCode || roomCode === 'PLAY') { showToast('No room code found'); return; }
+  socket.emit('join_room', { roomCode: roomCode, playerName: name, isAudience: selectedRole === 'audience' }, (res) => {
+    if (res.success) {
+      myId = socket.id;
+      myName = name;
+      isAudience = res.player.isAudience;
+      showScreen('mobileWait');
+      document.getElementById('waitEmoji').textContent = res.player.emoji;
+      document.getElementById('waitRoomCode').textContent = res.room.code;
+    } else {
+      showToast('Could not join: ' + res.error);
+    }
+  });
+}
+
+// ===== START GAME =====
+function startGame() {
+  socket.emit('start_game', (res) => {
+    if (!res.success) showToast('Error: ' + (res.error || ''));
+  });
+}
+
+// ===== SUBMIT ANSWERS =====
+function submitAnswers() {
+  const inputs = document.querySelectorAll('.answer-input');
+  let allFilled = true;
+  inputs.forEach(inp => {
+    if (!inp.value.trim()) allFilled = false;
+  });
+  if (!allFilled) { showToast('Answer all your prompts!'); return; }
+
+  inputs.forEach(inp => {
+    socket.emit('submit_answer', { promptId: inp.dataset.promptId, answer: inp.value.trim() });
+  });
+  showToast('✅ Answers submitted!');
+  showScreen('mobileWait');
+}
+
+// ===== SUBMIT VOTE =====
+function submitVote(promptId, isAudVote) {
+  const container = isAudVote ? 'audienceVoteOptions' : 'voteOptions';
+  const countEl = isAudVote ? 'audienceVoteCount' : 'myVoteCount';
+
+  if (myVotes.includes(promptId)) return;
+  socket.emit('submit_vote', { promptId }, (res) => {
+    if (res.success) {
+      myVotes.push(promptId);
+      document.getElementById(countEl).textContent = myVotes.length;
+      // Highlight selected
+      document.querySelectorAll('#' + container + ' .vote-option').forEach(el => {
+        if (el.dataset.promptId === promptId) el.classList.add('selected');
+      });
+    } else {
+      showToast(res.error || 'Error');
+    }
+  });
+}
+
+// ===== NEXT ROUND =====
+function nextRound() {
+  socket.emit('next_round');
+}
+
+// ===== TV Voting navigation =====
+function nextPromptTV() {
+  const display = document.getElementById('votingDisplay');
+  const prompts = display.querySelectorAll('.prompt-card');
+  currentVotingIndex++;
+  if (currentVotingIndex >= prompts.length) {
+    document.getElementById('nextPromptBtn').style.display = 'none';
+    return;
+  }
+  prompts.forEach((p, i) => {
+    p.style.display = i === currentVotingIndex ? 'block' : 'none';
+  });
+}
+
+// ===== SOCKET EVENTS =====
+socket.on('your_prompts', (data) => {
+  myPrompts = data.prompts;
+  const container = document.getElementById('promptInputs');
+  container.innerHTML = data.prompts.map((p, i) => `
+    <div class="card" style="margin-bottom:12px">
+      <label>Prompt ${i+1}</label>
+      <p class="prompt-text" style="font-size:1rem;text-align:left;margin:8px 0">${p.text}</p>
+      <textarea class="answer-input" data-prompt-id="${p.id}" placeholder="Your funniest answer..." rows="2"></textarea>
+    </div>
+  `).join('');
+  showScreen('mobileAnswer');
+});
+
+socket.on('game_state', (state) => {
+  roomState = state;
+
+  // Update lobby
+  if (state.state === 'lobby') {
+    if (isHost) {
+      showScreen('tvLobby');
+      document.getElementById('playerCount').textContent = state.players.length;
+      document.getElementById('playerList').innerHTML = state.players.map(p =>
+        `<div class="player-badge${p.isAudience ? ' audience' : ''}">${p.emoji} ${p.name}${p.isHost ? ' <span class="host-star">&#11088;</span>' : ''}${p.isAudience ? ' 👀' : ''}</div>`
+      ).join('');
+    } else {
+      // Mobile player in lobby - show waiting
+      showScreen('mobileWait');
+    }
+  }
+
+  // Answering phase
+  if (state.state === 'answering') {
+    if (isHost) {
+      showScreen('tvAnswering');
+      document.getElementById('roundNum').textContent = state.currentRound;
+    }
+    // Count total prompts vs answered
+    const totalPrompts = state.promptsForDisplay ? state.promptsForDisplay.length : 0;
+    const allPrompts = state.promptsForDisplay || [];
+    // We track answers via promptsForDisplay (only shown when answered)
+    // Or we estimate from players
+    const activePlayers = state.players.filter(p => !p.isAudience);
+    const totalAnswers = activePlayers.length * 2;
+    const answered = state.promptsForDisplay ? state.promptsForDisplay.filter(p => p.answer).length : 0;
+    document.getElementById('answerProgress').style.width = totalAnswers > 0 ? (answered / totalAnswers * 100) + '%' : '0%';
+    document.getElementById('answerCount').textContent = answered + ' / ' + totalAnswers + ' answered';
+  }
+
+  // Voting phase
+  if (state.state === 'voting') {
+    if (isHost) {
+      showScreen('tvVoting');
+      currentVotingIndex = 0;
+      const display = document.getElementById('votingDisplay');
+      const prompts = (state.promptsForDisplay || []).filter(p => p.answer);
+      display.innerHTML = prompts.map((p, i) => {
+        const player = state.players.find(pl => pl.id === p.playerId);
+        return `<div class="prompt-card" style="${i > 0 ? 'display:none' : ''}">
+          <div class="prompt-text">${p.text}</div>
+          <div class="answer-text">${p.answer}</div>
+          <div class="vote-count">Votes: ${state.voteCounts[p.id] || 0}</div>
+        </div>`;
+      }).join('');
+      document.getElementById('nextPromptBtn').style.display = prompts.length > 1 ? 'block' : 'none';
+    } else {
+      // Mobile voting
+      const prompts = (state.promptsForDisplay || []).filter(p => p.answer);
+      // Filter out own prompts
+      const otherPrompts = prompts.filter(p => p.playerId !== myId);
+
+      if (isAudience) {
+        showScreen('mobileAudienceVote');
+        document.getElementById('audienceVoteOptions').innerHTML = otherPrompts.map(p =>
+          `<div class="vote-option" data-prompt-id="${p.id}" onclick="submitVote('${p.id}', true)">
+            <div class="vo-prompt">${p.text}</div>
+            <div class="vo-answer">${p.answer}</div>
+          </div>`
+        ).join('');
+      } else {
+        showScreen('mobileVote');
+        myVotes = [];
+        document.getElementById('myVoteCount').textContent = '0';
+        document.getElementById('voteOptions').innerHTML = otherPrompts.map(p =>
+          `<div class="vote-option" data-prompt-id="${p.id}" onclick="submitVote('${p.id}', false)">
+            <div class="vo-prompt">${p.text}</div>
+            <div class="vo-answer">${p.answer}</div>
+          </div>`
+        ).join('');
+      }
+    }
+  }
+
+  // Results phase
+  if (state.state === 'results') {
+    const lastRound = state.roundResults[state.roundResults.length - 1];
+    if (isHost) {
+      showScreen('tvResults');
+      document.getElementById('resultsRound').textContent = state.currentRound;
+      document.getElementById('resultsContent').innerHTML = renderRoundResults(lastRound, state.players);
+
+      const isLastRound = state.currentRound >= state.maxRounds;
+      document.getElementById('nextRoundBtn').textContent = isLastRound ? '🏆 Final Results' : '▶ Next Round';
+    } else {
+      // Mobile results
+      const myPlayer = state.players.find(p => p.id === myId);
+      showScreen('mobileResults');
+      document.getElementById('mobileResultsTitle').textContent = '🏆 Round ' + state.currentRound + ' Results';
+      document.getElementById('mobileResultsContent').innerHTML = renderRoundResults(lastRound, state.players);
+      document.getElementById('mobileScore').textContent = 'Score: ' + (myPlayer ? myPlayer.score : 0);
+    }
+  }
+
+  // Finished
+  if (state.state === 'finished') {
+    const sorted = [...state.players].filter(p => !p.isAudience).sort((a, b) => b.score - a.score);
+    const winner = sorted[0];
+    if (isHost) {
+      showScreen('tvFinished');
+    } else {
+      showScreen('mobileResults');
+    }
+    document.getElementById('finalWinner').innerHTML = winner ? `
+      <div class="trophy">🏆</div>
+      <div class="winner-name">${winner.emoji} ${winner.name}</div>
+      <div class="winner-score">Score: ${winner.score}</div>
+    ` : '<div class="trophy">🤝</div><div class="winner-name">It\'s a tie!</div>';
+
+    document.getElementById('finalResults').innerHTML = state.roundResults.map(rr =>
+      '<div class="card" style="margin-bottom:12px">' + renderRoundResults(rr, state.players) + '</div>'
+    ).join('') + '<br>';
+  }
+});
+
+function renderRoundResults(lastRound, players) {
+  if (!lastRound) return '<p style="color:rgba(255,255,255,0.3)">No results yet</p>';
+  let html = '<div class="leaderboard">';
+  if (lastRound.scores) {
+    lastRound.scores.forEach((s, i) => {
+      html += `<div class="leaderboard-item"><span class="rank">#${i+1}</span><span class="name">${s.emoji || ''} ${s.name}</span><span class="score">+${s.totalVotes || 0}</span></div>`;
+    });
+  }
+  html += '</div><br>';
+  if (lastRound.prompts) {
+    lastRound.prompts.forEach(p => {
+      html += `<div class="round-result-card"><div class="q">💬 ${p.text}</div><div class="a">${p.answer}</div><div class="author">— ${p.playerName}</div><div class="votes">⭐ ${p.votes} vote${p.votes !== 1 ? 's' : ''}</div></div>`;
+    });
+  }
+  return html;
+}
+
+// Mobile join - try room code from URL
+if (joinCode && joinCode.length > 2) {
+  document.getElementById('mobileRoomCode').textContent = joinCode;
+}
+</script>
+</body>
+</html>
