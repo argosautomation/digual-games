@@ -116,6 +116,38 @@ const THEME_DESC = {
 };
 
 const THEME_FALLBACK = {
+  mixed: [
+    "An honest tagline for Mondays",
+    "What a GPS would say if it gave up on you",
+    "The worst thing to find in your hotel minibar",
+    "A new event for the Olympics that nobody asked for",
+    "A movie sequel nobody wants but somehow exists",
+    "Your dog's secret hobby",
+    "The most useless app on a smartwatch",
+    "The worst possible name for a perfume",
+    "Something you'd find in a wizard's junk drawer",
+    "A truly cursed pizza topping combination",
+    "The most unhinged thing to put on a resume",
+    "A bad opening line for a TED talk",
+    "What an AI assistant says when you're not listening",
+    "The worst flavor for a sports drink",
+    "A holiday that absolutely should not exist",
+    "An honest motto for the DMV",
+    "The strangest thing to find in a wedding registry",
+    "A bad celebrity baby name",
+    "What your phone's autocorrect REALLY thinks of you",
+    "The world's worst theme park ride",
+    "Something you should never microwave",
+    "A reason your Uber driver gave you 1 star",
+    "The most awkward thing to say in an elevator",
+    "An emoji that should exist but doesn't",
+    "A new street name in a fancy housing development",
+    "What a cat would put on its dating profile",
+    "The least helpful thing your GPS could say",
+    "A terrible name for a cruise ship",
+    "Your most embarrassing browser search of all time",
+    "Something that should NEVER be on a t-shirt",
+  ],
   derby: [
     "What's the worst thing to overhear in the betting line at Churchill Downs?",
     'A terrible name for a racehorse',
@@ -325,15 +357,17 @@ async function genPrompts(age, theme, count) {
   const themeText = THEME_DESC[theme] || (theme + ' theme');
   if (HAS_AI) {
     try {
-      const th = theme === 'mixed' ? themeText : themeText + ' (stay strongly on this theme — most prompts should clearly evoke it)';
+      const th = theme === 'mixed'
+        ? 'a HUGE variety — pull from many different topics across the entire batch. Each prompt should evoke a clearly different theme from its neighbours. Cycle through topics like: sports, movies/TV, animals, food, school, work/office, travel, music, dating/relationships, technology/internet, family, holidays, weather, money, news/politics-lite, history, science, fashion, hobbies. Do NOT cluster multiple prompts in the same topic.'
+        : themeText + ' (stay strongly on this theme — most prompts should clearly evoke it)';
       const ad = age === 'kids' ? 'family-friendly, G-rated, for children' : age === 'teens' ? 'PG-13, for teenagers' : 'adult humor, edgy and risque';
       const r = await openai.chat.completions.create({
         model: 'deepseek-chat',
         messages: [
           { role: 'system', content: 'Generate funny party game prompts. Return ONLY a JSON array of strings.' },
-          { role: 'user', content: `Generate ${count} funny quippy prompts for Quiplash. Age: ${age} (${ad}). Theme: ${th}. Each is a short sentence/question under 30 words for witty one-line answers. Return JSON array of strings.` },
+          { role: 'user', content: `Generate ${count} funny quippy prompts for Quiplash. Age: ${age} (${ad}). Theme: ${th} Each is a short sentence/question under 30 words for witty one-line answers. Return JSON array of strings.` },
         ],
-        temperature: 0.9,
+        temperature: 0.95,
         max_tokens: 2000,
       });
       const t = r.choices[0].message.content.trim();

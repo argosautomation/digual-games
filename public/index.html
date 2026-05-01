@@ -1276,7 +1276,7 @@ socket.on('game_state', (state) => {
       showScreen('tvResults');
       $('resultsRound').textContent = String(state.currentRound);
       renderRoundResultsInto($('resultsContent'), lastRound);
-      $('btnNextRound').textContent = state.currentRound >= state.maxRounds ? '🏆 Final Results' : '▶ Next Round';
+      $('btnNextRound').textContent = state.currentRound >= state.maxRounds ? '🎉 Show Winner!' : '▶ Next Round';
     } else {
       const myPlayer = state.players.find(p => p.id === myId);
       showScreen('mobileResults');
