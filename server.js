@@ -419,8 +419,11 @@ async function startRound(room) {
   room.lastActivity = Date.now();
   const isLastLash = room.currentRound === room.maxRounds;
   room.isLastLash = isLastLash;
-  // Only assign prompts to players who are actually present — skip disconnected/phantom records
-  const active = activePlayers(room).filter(p => !p.disconnected);
+  // Assign prompts to ALL active players (including momentarily disconnected ones) so they
+  // can pick up their prompts when their socket reconnects. The early-end check and totalAnswers
+  // count below will exclude prompts assigned to currently-disconnected players, so a phantom
+  // can't hold up the phase.
+  const active = activePlayers(room);
   // Pull prompts excluding any already used in this room. Generate extra to allow filtering.
   if (!Array.isArray(room.usedPromptTexts)) room.usedPromptTexts = [];
   async function freshPrompts(count) {
@@ -547,13 +550,22 @@ function buildStatePayload(room) {
   const vc = {};
   for (const votes of Object.values(room.votes)) for (const pid of votes) vc[pid] = (vc[pid] || 0) + 1;
   const active = activePlayers(room);
-  // Total expected answers should reflect only players who actually got prompts assigned —
-  // disconnected players are skipped at startRound time, so don't count them here either.
-  const promptedCount = (room.state === 'answering' || room.state === 'voting' || room.state === 'results')
-    ? new Set(room.prompts.map(p => p.playerId)).size
-    : active.filter(p => !p.disconnected).length;
-  const totalAnswers = room.isLastLash ? promptedCount : promptedCount * 2;
-  const answeredCount = room.prompts.filter(p => p.answer).length;
+  // Total expected answers reflects only currently-connected players' prompts.
+  // Phantom (disconnected) players' prompts will auto-fill at timer expiry but shouldn't show
+  // as "still waiting" on the host TV.
+  let totalAnswers = 0;
+  let answeredCount = 0;
+  if (room.state === 'answering' || room.state === 'voting' || room.state === 'results') {
+    for (const p of room.prompts) {
+      const owner = room.players.find(pl => pl.id === p.playerId);
+      if (!owner || owner.disconnected || owner.removed) continue;
+      totalAnswers++;
+      if (p.answer) answeredCount++;
+    }
+  } else {
+    totalAnswers = (active.filter(p => !p.disconnected).length) * (room.isLastLash ? 1 : 2);
+    answeredCount = 0;
+  }
   return {
     code: room.code,
     hostName: room.hostName,
@@ -744,7 +756,14 @@ io.on('connection', (socket) => {
     if (p.playerId !== player.id) return cb && cb({ success: false, error: 'Not your prompt' });
     if (p.answer) return cb && cb({ success: false, error: 'Already answered' });
     p.answer = (answer || '').toString().slice(0, 200);
-    if (room.prompts.every(x => x.answer !== null)) {
+    // Early-end the answering phase if every prompt assigned to a STILL-CONNECTED player has an
+    // answer. Prompts owned by a disconnected/phantom player don't block — they'll auto-fill on
+    // timer expiry but shouldn't keep responsive players waiting.
+    const expected = room.prompts.filter(x => {
+      const owner = room.players.find(pl => pl.id === x.playerId);
+      return owner && !owner.disconnected && !owner.removed;
+    });
+    if (expected.length > 0 && expected.every(x => x.answer !== null)) {
       room.state = 'voting';
       setPhaseTimer(room, VOTE_MS, () => endVotingPhase(room));
     }

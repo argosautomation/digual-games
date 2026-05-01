@@ -1124,13 +1124,17 @@ function attemptResume() {
       tw($('waitEmoji'));
       $('waitRoomCode').textContent = res.room.code;
       if (res.yourPrompts && res.yourPrompts.length) {
-        renderAnswerForm(res.yourPrompts, true);
         const remaining = res.yourPrompts.filter(p => !p.answer);
+        myVotes = []; voteQueue = []; voteIndex = 0;
+        answerQueue = remaining;
+        answerIndex = 0;
+        answerRound = (roomState && roomState.currentRound) || 1;
         if (remaining.length === 0) {
           $('waitTitle').textContent = '✅ Submitted';
           $('waitMsg').textContent = 'Waiting for other players to finish…';
           showScreen('mobileWait');
         } else {
+          renderCurrentAnswerPrompt();
           showScreen('mobileAnswer');
         }
       }
