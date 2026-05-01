@@ -6,17 +6,20 @@ A real-time multiplayer party game where players write funny answers to AI-gener
 
 - **AI-Powered Prompts** — Generated on-the-fly via Deepseek API across 5 themes (Mixed, Sports, Entertainment, Pirates, Food)
 - **Age-Appropriate Content** — Choose Kids (G-rated), Teens (PG-13), or Adults (edgy) — prompts adapt automatically
-- **QR Code Joining** — Scan the QR on the TV screen with your phone to join — no app or URL typing needed
-- **8 Active Players + Audience** — First 8 join as players, everyone after as audience (can still vote)
+- **QR Code or Emoji Joining** — Scan the QR on the TV, or open `digual.com/games` and tap the 4 emojis shown on the TV (no QR needed)
+- **3-8 Active Players + Audience** — Minimum 3 players required to start; first 8 join as players, everyone after as audience (can still vote)
+- **Head-to-head Voting** — Each round you compare two answers from the same author and pick the funnier one
 - **Can't Vote Yourself** — Players see all answers except their own
 - **Emoji Identities** — Anonymous player badges with random emoji avatars
-- **3 Rounds** — Each round gives 2 prompts per player, then votes are tallied
+- **3 Rounds** — Each round gives 2 prompts per player, then votes are tallied; final round ("Last Lash") is a shared prompt with 2× scoring
+- **No Repeat Prompts** — Used prompts are tracked per-room so you never see the same question twice in a single game
 - **Real-Time** — Powered by Socket.IO, all state syncs instantly
+- **Roku TV Native Client** — Roku app (`digual-tv-roku`) acts as the host TV via REST polling, no socket needed
 
 ## How It Works
 
-1. **Host** opens `digual.com/games` on a TV/projector, sets age & theme, creates a room
-2. **Players** scan the QR code with their phone camera → opens the join screen
+1. **Host** opens `digual.com/games` on a TV/projector, sets age & theme, creates a room. The host's TV is a display only — the host does not play or vote from the TV.
+2. **Players** either scan the QR code with their phone camera, OR open `digual.com/games` on their phone, tap "Join an existing game", and either type the room code or tap the 4 emojis displayed on the TV.
 3. **Enter nickname** → tap Join → waiting for game to start
 4. **Host starts** the game → each player gets 2 prompts on their phone
 5. **Players type** funny answers → submitted for all to see
@@ -48,7 +51,25 @@ Then open `http://localhost:3201` — the TV interface is responsive and detects
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DEEPSEEK_API_KEY` | Yes | Deepseek API key for AI prompt generation |
+| `DEEPSEEK_API_KEY` | No | Deepseek API key for AI prompt generation. If unset, server falls back to a built-in pool. |
+| `PORT` | No | Listen port (default `3201`) |
+| `HOST` | No | Listen host (default `127.0.0.1`) |
+| `PUBLIC_URL` | No | Public URL embedded in QR codes (default `https://digual.com/games`) |
+| `ALLOWED_ORIGINS` | No | Comma-separated origins for Socket.IO CORS. Empty = `*` (dev only). Example: `https://digual.com` |
+| `ANSWER_MS` | No | Answering phase length in ms (default `75000`) |
+| `VOTE_MS` | No | Voting phase length in ms (default `30000`) |
+
+## Roku REST API
+
+The Roku TV client doesn't use Socket.IO — it polls REST endpoints over HTTPS. Three endpoints:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/roku/create-room` | Create a new room. Body: `{ hostName, ageRange, theme }`. Returns `{ success, roomCode, emojis, hostToken }`. |
+| `GET`  | `/api/roku/state/:roomCode` | Returns the current room state (same payload Socket.IO broadcasts). |
+| `POST` | `/api/roku/action/:roomCode` | Trigger a host action. Body: `{ token, action }` where `action` is `start_game` \| `next_round` \| `force_advance` \| `force_results`. Requires the `hostToken` returned from create-room. |
+
+Inputs are validated server-side: `ageRange` must be one of `kids`/`teens`/`adults`, `theme` must be one of the registered themes (default `derby`), `hostName` is sanitized to printable chars and trimmed to 20 characters. Roku polls `/api/roku/state/...` every 1.5s while a game is active.
 
 ## Deployment
 
